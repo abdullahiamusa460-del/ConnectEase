@@ -179,8 +179,8 @@ export function RecordDetail({
         <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-amber/20 bg-amber-soft/65 px-3.5 py-3 text-[10px] leading-relaxed text-[#7d5a19]">
           <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span>
-            This change is queued on this device. The sync server is not connected yet, so nothing
-            has been uploaded or marked as synced.
+            This change is queued on this device and will upload when the app is online and the
+            sync server is reachable. Until then, it stays saved locally.
           </span>
         </div>
       )}

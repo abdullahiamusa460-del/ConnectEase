@@ -598,8 +598,8 @@ export default function App() {
 
               <footer className="flex flex-col gap-1.5 border-t border-line/80 pb-2 pt-5 text-[10px] leading-relaxed text-muted sm:flex-row sm:items-center sm:justify-between">
                 <p>
-                  <span className="font-semibold text-ink">ConnectEase</span> · Task 3 dashboard
-                  preview
+                  <span className="font-semibold text-ink">ConnectEase</span> · Offline-first
+                  dashboard
                 </p>
                 <p className="flex items-center gap-1.5">
                   <span className="h-1.5 w-1.5 rounded-full bg-brand" aria-hidden="true" />

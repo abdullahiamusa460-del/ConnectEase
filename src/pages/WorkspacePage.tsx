@@ -219,8 +219,8 @@ export function WorkspacePage({
                 {changes.length} local {changes.length === 1 ? 'change is' : 'changes are'} waiting
                 to sync.
               </span>{' '}
-              They are saved on this device. The sync server is not connected yet, so nothing has
-              been uploaded.
+              They are saved on this device and will sync when the app is online and the sync
+              server is reachable.
             </p>
           </div>
           <button

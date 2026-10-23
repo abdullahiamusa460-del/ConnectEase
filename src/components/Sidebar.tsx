@@ -205,7 +205,7 @@ export function Sidebar({
           </span>
         </div>
         <p className="mt-4 text-center text-[9px] tracking-wide text-white/25">
-          ConnectEase · Task 3 preview
+          ConnectEase · Offline-first preview
         </p>
       </div>
     </aside>

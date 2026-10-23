@@ -10,8 +10,8 @@ export function DemoNotice({ onDismiss }: DemoNoticeProps) {
       <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber sm:mt-0" aria-hidden="true" />
       <p className="flex-1">
         <span className="font-semibold">Demo preview.</span> Dashboard figures and sample records
-        are demo data. Your workspace records are stored only in this browser — no backend,
-        account or sync server is connected.
+        are demo data. Your workspace records, reports and test results are saved on this device
+        first, then sync with the ConnectEase server when it is available.
       </p>
       <button
         type="button"

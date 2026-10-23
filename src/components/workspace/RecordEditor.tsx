@@ -172,8 +172,8 @@ export function RecordEditor({ record, onClose, onSave }: RecordEditorProps) {
 
         <p className="flex items-start gap-1.5 rounded-xl bg-brand-soft/55 px-3 py-2.5 text-[10px] leading-relaxed text-brand-dark">
           <HardDriveDownload className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          Saving adds this change to the local sync queue. The sync server is not connected yet,
-          so nothing will be uploaded.
+          Saving adds this change to the local sync queue. It uploads automatically when the app
+          is online and the sync server is available.
         </p>
       </form>
     </Modal>

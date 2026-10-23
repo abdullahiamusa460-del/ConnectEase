@@ -19,6 +19,8 @@ const routeMeta: Record<AppRoute, { crumb: string; title: string; subtitle?: str
   dashboard: { crumb: 'Workspace', title: 'Dashboard', subtitle: 'Overview' },
   workspace: { crumb: 'Workspace', title: 'Offline workspace' },
   sync: { crumb: 'Workspace', title: 'Sync centre' },
+  'network-test': { crumb: 'Connectivity', title: 'Network test' },
+  'network-reports': { crumb: 'Connectivity', title: 'Network reports' },
   settings: { crumb: 'Preferences', title: 'Settings' },
 }
 

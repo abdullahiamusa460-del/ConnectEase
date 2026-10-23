@@ -10,6 +10,7 @@ interface SidebarProps {
   activeSection: string
   demoQueueCount: number
   pendingChangesCount: number
+  reportsCount: number
   isOffline: boolean
   dataSaverOn: boolean
   onNavigate: (route: AppRoute) => void
@@ -21,6 +22,7 @@ export function Sidebar({
   activeSection,
   demoQueueCount,
   pendingChangesCount,
+  reportsCount,
   isOffline,
   dataSaverOn,
   onNavigate,
@@ -76,7 +78,15 @@ export function Sidebar({
           {appNavItems.map((item) => {
             const Icon = item.icon
             const isActive = route === item.id
-            const badge = item.id === 'workspace' || item.id === 'sync' ? pendingChangesCount : 0
+            const isBadgeItem =
+              item.id === 'workspace' ||
+              item.id === 'sync' ||
+              item.id === 'network-reports'
+            const badge = isBadgeItem
+              ? item.id === 'network-reports'
+                ? reportsCount
+                : pendingChangesCount
+              : 0
             return (
               <a
                 key={item.id}
@@ -195,7 +205,7 @@ export function Sidebar({
           </span>
         </div>
         <p className="mt-4 text-center text-[9px] tracking-wide text-white/25">
-          ConnectEase · Task 2 preview
+          ConnectEase · Task 3 preview
         </p>
       </div>
     </aside>

@@ -50,7 +50,7 @@ export function RecordEditor({ record, onClose, onSave }: RecordEditorProps) {
   return (
     <Modal
       title={record ? 'Edit record' : 'New record'}
-      description="Saved in IndexedDB on this device. No account or server is involved."
+      description="Saved in IndexedDB first. Changes sync to the server when you are online."
       icon={
         <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand-soft text-brand">
           <HardDriveDownload className="h-[18px] w-[18px]" aria-hidden="true" />

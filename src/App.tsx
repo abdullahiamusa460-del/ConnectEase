@@ -6,6 +6,8 @@ import { DashboardSkeleton } from './components/DashboardSkeleton'
 import { DataSaverCard } from './components/DataSaverCard'
 import { DemoNotice } from './components/DemoNotice'
 import { MobileNav } from './components/MobileNav'
+import { NetworkReportsPage } from './pages/NetworkReportsPage'
+import { NetworkTestPage } from './pages/NetworkTestPage'
 import { OfflineBanner } from './components/OfflineBanner'
 import { OfflineLibrary } from './components/OfflineLibrary'
 import { Sidebar } from './components/Sidebar'
@@ -23,15 +25,24 @@ import {
 } from './data/demo'
 import { sectionIds } from './data/navigation'
 import { useHashRoute } from './hooks/useHashRoute'
+import { useNetworkReports } from './hooks/useNetworkTests'
 import { useOnlineStatus } from './hooks/useOnlineStatus'
 import { useServiceWorker } from './hooks/useServiceWorker'
 import { useSettings } from './hooks/useSettings'
+import { useSync } from './hooks/useSync'
 import { useWorkspaceData } from './hooks/useWorkspaceData'
-import type { AppSettings, OfflineItem, ToastMessage, ToastTone } from './types'
+import type {
+  AppSettings,
+  NetworkReportInput,
+  OfflineItem,
+  ToastMessage,
+  ToastTone,
+} from './types'
 import { formatLongDate, formatMB, formatTime, getGreeting } from './lib/utils'
 import { SettingsPage } from './pages/SettingsPage'
 import { SyncPage } from './pages/SyncPage'
 import { WorkspacePage } from './pages/WorkspacePage'
+import { removeRemoteReport } from './lib/api'
 
 function useActiveSection(enabled: boolean) {
   const [activeSection, setActiveSection] = useState('overview')
@@ -97,6 +108,15 @@ export default function App() {
     addSamples: addSampleRecords,
   } = useWorkspaceData()
   const serviceWorkerStatus = useServiceWorker()
+  const {
+    reports,
+    isLoading: isReportsLoading,
+    error: reportsError,
+    reload: reloadReports,
+    add: addNetworkReport,
+    remove: removeNetworkReport,
+    addSamples: addSampleNetworkReports,
+  } = useNetworkReports()
 
   const [isLoading, setIsLoading] = useState(true)
   const [isSimulatedOffline, setIsSimulatedOffline] = useState(false)
@@ -122,6 +142,18 @@ export default function App() {
 
   const dismissToast = useCallback(() => setToast(null), [])
 
+  const handleSynced = useCallback(async () => {
+    await Promise.all([reloadWorkspace(), reloadReports()])
+  }, [reloadWorkspace, reloadReports])
+
+  const sync = useSync({
+    isOnline,
+    isSimulatedOffline,
+    autoSync: settings.autoSync,
+    pendingChanges: changes.length,
+    onSynced: handleSynced,
+  })
+
   useEffect(() => {
     const timer = window.setTimeout(() => setIsLoading(false), 750)
     return () => window.clearTimeout(timer)
@@ -136,8 +168,13 @@ export default function App() {
 
   const handleRefresh = useCallback(() => {
     if (route !== 'dashboard') {
-      void reloadWorkspace()
-      notify('Local workspace reloaded from this device.', 'info')
+      if (route === 'workspace') {
+        void reloadWorkspace()
+        notify('Local workspace reloaded from this device.', 'info')
+      } else if (route === 'network-reports') {
+        void reloadReports()
+        notify('Reports reloaded from this device.', 'info')
+      }
       return
     }
 
@@ -252,7 +289,7 @@ export default function App() {
     [notify],
   )
 
-  const handleCheckSync = useCallback(() => {
+  const handleCheckSync = useCallback(async () => {
     if (isOffline) {
       notify(
         'Still offline. Your records and queued changes are saved safely on this device.',
@@ -260,11 +297,64 @@ export default function App() {
       )
       return
     }
+
+    if (!sync.isConfigured) {
+      notify(
+        'No sync server is configured for this build. Your changes stay saved on this device.',
+        'info',
+      )
+      return
+    }
+
+    const summary = await sync.syncNow()
+    if (!summary) {
+      notify(
+        sync.error ?? 'Sync could not be completed. Your changes remain queued locally.',
+        'warning',
+      )
+      return
+    }
+
+    const parts: string[] = []
+    if (summary.changes > 0) parts.push(`${summary.changes} queued change${summary.changes === 1 ? '' : 's'}`)
+    if (summary.reports > 0) parts.push(`${summary.reports} report${summary.reports === 1 ? '' : 's'}`)
+    if (summary.tests > 0) parts.push(`${summary.tests} test result${summary.tests === 1 ? '' : 's'}`)
+    if (summary.skipped > 0) parts.push(`${summary.skipped} item${summary.skipped === 1 ? '' : 's'} skipped`)
     notify(
-      'No sync server is connected yet. Nothing was uploaded — your changes remain queued locally.',
-      'info',
+      parts.length > 0
+        ? `Sync complete — ${parts.join(', ')} sent to the server.`
+        : 'Sync complete. Everything is up to date.',
+      'success',
     )
-  }, [isOffline, notify])
+  }, [isOffline, notify, sync])
+
+  const handleAddReport = useCallback(
+    async (input: NetworkReportInput) => {
+      const report = await addNetworkReport(input)
+      sync.requestSync()
+      return report
+    },
+    [addNetworkReport, sync],
+  )
+
+  const handleRemoveReport = useCallback(
+    async (id: string) => {
+      const report = reports.find((item) => item.id === id)
+      await removeNetworkReport(id)
+
+      if (report?.syncedAt && !isOffline) {
+        try {
+          await removeRemoteReport(id)
+        } catch {
+          notify(
+            'Report removed from this device. The server copy could not be deleted.',
+            'warning',
+          )
+        }
+      }
+    },
+    [isOffline, notify, removeNetworkReport, reports, sync],
+  )
 
   const offlineSize = offlineItems.reduce((sum, item) => sum + item.sizeMB, 0)
   const syncSize = syncItems.reduce((sum, item) => sum + item.sizeMB, 0)
@@ -288,6 +378,7 @@ export default function App() {
         activeSection={activeSection}
         demoQueueCount={syncItems.length}
         pendingChangesCount={changes.length}
+        reportsCount={reports.length}
         isOffline={isOffline}
         dataSaverOn={settings.dataSaver}
         onNavigate={navigate}
@@ -299,7 +390,15 @@ export default function App() {
           route={route}
           dataSaverOn={settings.dataSaver}
           onToggleDataSaver={handleToggleDataSaver}
-          isLoading={route === 'dashboard' ? isLoading : isWorkspaceLoading}
+          isLoading={
+            route === 'dashboard'
+              ? isLoading
+              : route === 'workspace'
+                ? isWorkspaceLoading
+                : route === 'network-reports'
+                  ? isReportsLoading
+                  : false
+          }
           onRefresh={handleRefresh}
           lastUpdated={lastUpdated}
           isOnline={isOnline}
@@ -343,6 +442,9 @@ export default function App() {
               isOnline={isOnline}
               isSimulatedOffline={isSimulatedOffline}
               settings={settings}
+              syncStatus={sync.status}
+              syncError={sync.error}
+              lastSyncedAt={sync.lastSyncedAt}
               onCheckAgain={handleCheckSync}
               onOpenSettings={() => navigate('settings')}
               onOpenWorkspace={() => navigate('workspace')}
@@ -356,6 +458,31 @@ export default function App() {
               serviceWorkerStatus={serviceWorkerStatus}
               recordCount={records.length}
               changeCount={changes.length}
+            />
+          ) : route === 'network-test' ? (
+            <NetworkTestPage
+              isOnline={isOnline}
+              isSimulatedOffline={isSimulatedOffline}
+              onSaveResult={(result) => {
+                sync.requestSync()
+                notify(
+                  `Network test ${result.available ? 'completed' : 'could not complete'}. No speeds are simulated.`,
+                  result.available ? 'success' : 'info',
+                )
+              }}
+            />
+          ) : route === 'network-reports' ? (
+            <NetworkReportsPage
+              isOnline={isOnline}
+              isSimulatedOffline={isSimulatedOffline}
+              reports={reports}
+              isLoading={isReportsLoading}
+              error={reportsError}
+              onReload={reloadReports}
+              onAdd={handleAddReport}
+              onRemove={handleRemoveReport}
+              onAddSamples={addSampleNetworkReports}
+              onNotify={notify}
             />
           ) : isLoading ? (
             <DashboardSkeleton />
@@ -471,7 +598,7 @@ export default function App() {
 
               <footer className="flex flex-col gap-1.5 border-t border-line/80 pb-2 pt-5 text-[10px] leading-relaxed text-muted sm:flex-row sm:items-center sm:justify-between">
                 <p>
-                  <span className="font-semibold text-ink">ConnectEase</span> · Task 2 dashboard
+                  <span className="font-semibold text-ink">ConnectEase</span> · Task 3 dashboard
                   preview
                 </p>
                 <p className="flex items-center gap-1.5">
@@ -485,7 +612,7 @@ export default function App() {
         </main>
       </div>
 
-      <MobileNav route={route} pendingChangesCount={changes.length} />
+      <MobileNav route={route} pendingChangesCount={changes.length} reportsCount={reports.length} />
       <Toast toast={toast} onDismiss={dismissToast} />
     </div>
   )

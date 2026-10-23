@@ -1,12 +1,14 @@
 import {
   Activity,
+  BarChart3,
   CloudUpload,
   HardDriveDownload,
   LayoutDashboard,
   NotebookPen,
   Settings,
+  Smartphone,
 } from 'lucide-react'
-import type { AppNavItem, NavItem } from '../types'
+import type { AppNavItem, NavItem, NetworkProvider } from '../types'
 
 export const appNavItems: AppNavItem[] = [
   {
@@ -20,12 +22,27 @@ export const appNavItems: AppNavItem[] = [
     label: 'Offline workspace',
     shortLabel: 'Workspace',
     icon: NotebookPen,
+    showBadge: true,
   },
   {
     id: 'sync',
     label: 'Sync centre',
     shortLabel: 'Sync',
     icon: CloudUpload,
+    showBadge: true,
+  },
+  {
+    id: 'network-test',
+    label: 'Network test',
+    shortLabel: 'Test',
+    icon: BarChart3,
+  },
+  {
+    id: 'network-reports',
+    label: 'Network reports',
+    shortLabel: 'Reports',
+    icon: Smartphone,
+    showBadge: true,
   },
   {
     id: 'settings',
@@ -67,3 +84,13 @@ export const dashboardSections: NavItem[] = [
 ]
 
 export const sectionIds = dashboardSections.map((item) => item.id)
+
+export const networkProviders: NetworkProvider[] = ['MTN', 'Airtel', 'Glo', '9mobile', 'Other']
+
+export const providerLabels: Record<NetworkProvider, string> = {
+  MTN: 'MTN',
+  Airtel: 'Airtel',
+  Glo: 'Glo',
+  '9mobile': '9mobile',
+  Other: 'Other provider',
+}

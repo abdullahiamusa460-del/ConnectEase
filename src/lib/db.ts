@@ -1,14 +1,23 @@
 import type {
   AppSettings,
+  NetworkReport,
+  NetworkReportInput,
+  NetworkTestResult,
   PendingChange,
   RecordInput,
+  SyncAcknowledgement,
+  SyncedWorkspaceRecord,
   WorkspaceRecord,
+  WorkspaceTombstone,
 } from '../types'
 import { createId } from './utils'
 
 const DB_NAME = 'connectease-offline'
-const DB_VERSION = 1
+const DB_VERSION = 3
 const SETTINGS_KEY = 'app-preferences'
+const TESTS_STORE = 'networkTests'
+const REPORTS_STORE = 'reports'
+const SYNC_STORE = 'syncMeta'
 
 const DEFAULT_SETTINGS: AppSettings = {
   dataSaver: true,
@@ -21,7 +30,7 @@ const DEFAULT_SETTINGS: AppSettings = {
 
 let dbPromise: Promise<IDBDatabase> | null = null
 
-export { DEFAULT_SETTINGS }
+export { DEFAULT_SETTINGS, TESTS_STORE, REPORTS_STORE, SYNC_STORE }
 
 export function isIndexedDBSupported(): boolean {
   return typeof indexedDB !== 'undefined'
@@ -51,6 +60,22 @@ function openDatabase(): Promise<IDBDatabase> {
 
         if (!db.objectStoreNames.contains('settings')) {
           db.createObjectStore('settings', { keyPath: 'key' })
+        }
+
+        if (!db.objectStoreNames.contains(TESTS_STORE)) {
+          const tests = db.createObjectStore(TESTS_STORE, { keyPath: 'id' })
+          tests.createIndex('testedAt', 'testedAt', { unique: false })
+          tests.createIndex('available', 'available', { unique: false })
+        }
+
+        if (!db.objectStoreNames.contains(REPORTS_STORE)) {
+          const reports = db.createObjectStore(REPORTS_STORE, { keyPath: 'id' })
+          reports.createIndex('reportedAt', 'reportedAt', { unique: false })
+          reports.createIndex('provider', 'provider', { unique: false })
+        }
+
+        if (!db.objectStoreNames.contains(SYNC_STORE)) {
+          db.createObjectStore(SYNC_STORE, { keyPath: 'key' })
         }
       }
 
@@ -300,4 +325,242 @@ export async function addSampleRecords(): Promise<WorkspaceRecord[]> {
 
 export async function getSettingsDefaults(): Promise<AppSettings> {
   return { ...DEFAULT_SETTINGS }
+}
+
+export async function saveNetworkTest(result: NetworkTestResult): Promise<NetworkTestResult> {
+  const db = await openDatabase()
+
+  const transaction = db.transaction(TESTS_STORE, 'readwrite')
+  transaction.objectStore(TESTS_STORE).put(result)
+  await transactionComplete(transaction)
+  return result
+}
+
+export async function getNetworkTests(): Promise<NetworkTestResult[]> {
+  const db = await openDatabase()
+  const transaction = db.transaction(TESTS_STORE, 'readonly')
+  const tests = await requestResult(
+    transaction.objectStore(TESTS_STORE).getAll() as IDBRequest<NetworkTestResult[]>,
+  )
+  await transactionComplete(transaction)
+
+  return tests.sort(
+    (first, second) =>
+      new Date(second.testedAt).getTime() - new Date(first.testedAt).getTime(),
+  )
+}
+
+async function persistReport(
+  input: NetworkReportInput,
+  isDemo = false,
+): Promise<NetworkReport> {
+  const db = await openDatabase()
+  const now = new Date().toISOString()
+  const report: NetworkReport = {
+    id: createId(),
+    provider: input.provider,
+    location: input.location ? input.location.trim() || null : null,
+    issue: input.issue.trim(),
+    reportedAt: now,
+    ...(isDemo ? { isDemo: true } : {}),
+  }
+
+  const transaction = db.transaction(REPORTS_STORE, 'readwrite')
+  transaction.objectStore(REPORTS_STORE).put(report)
+  await transactionComplete(transaction)
+  return report
+}
+
+export async function createReport(input: NetworkReportInput): Promise<NetworkReport> {
+  return persistReport(input)
+}
+
+export async function getReports(): Promise<NetworkReport[]> {
+  const db = await openDatabase()
+  const transaction = db.transaction(REPORTS_STORE, 'readonly')
+  const reports = await requestResult(
+    transaction.objectStore(REPORTS_STORE).getAll() as IDBRequest<NetworkReport[]>,
+  )
+  await transactionComplete(transaction)
+
+  return reports.sort(
+    (first, second) =>
+      new Date(second.reportedAt).getTime() - new Date(first.reportedAt).getTime(),
+  )
+}
+
+export async function deleteReport(id: string): Promise<void> {
+  const db = await openDatabase()
+  const transaction = db.transaction(REPORTS_STORE, 'readwrite')
+  transaction.objectStore(REPORTS_STORE).delete(id)
+  await transactionComplete(transaction)
+}
+
+export async function getUnsyncedReports(): Promise<NetworkReport[]> {
+  const reports = await getReports()
+  return reports.filter((report) => !report.syncedAt && !report.isDemo)
+}
+
+export async function markReportSynced(id: string, syncedAt: string): Promise<void> {
+  const db = await openDatabase()
+  const transaction = db.transaction(REPORTS_STORE, 'readwrite')
+  const store = transaction.objectStore(REPORTS_STORE)
+  const report = await requestResult(
+    store.get(id) as IDBRequest<NetworkReport | undefined>,
+  )
+  if (report) store.put({ ...report, syncedAt })
+  await transactionComplete(transaction)
+}
+
+export async function getUnsyncedNetworkTests(): Promise<NetworkTestResult[]> {
+  const tests = await getNetworkTests()
+  return tests.filter((test) => !test.syncedAt)
+}
+
+export async function markNetworkTestSynced(id: string, syncedAt: string): Promise<void> {
+  const db = await openDatabase()
+  const transaction = db.transaction(TESTS_STORE, 'readwrite')
+  const store = transaction.objectStore(TESTS_STORE)
+  const test = await requestResult(
+    store.get(id) as IDBRequest<NetworkTestResult | undefined>,
+  )
+  if (test) store.put({ ...test, syncedAt })
+  await transactionComplete(transaction)
+}
+
+export async function readSyncMeta<T>(key: string): Promise<T | undefined> {
+  const db = await openDatabase()
+  const transaction = db.transaction(SYNC_STORE, 'readonly')
+  const stored = await requestResult(
+    transaction.objectStore(SYNC_STORE).get(key) as IDBRequest<
+      { key: string; value: T } | undefined
+    >,
+  )
+  await transactionComplete(transaction)
+  return stored?.value
+}
+
+export async function writeSyncMeta<T>(key: string, value: T): Promise<void> {
+  const db = await openDatabase()
+  const transaction = db.transaction(SYNC_STORE, 'readwrite')
+  transaction.objectStore(SYNC_STORE).put({ key, value })
+  await transactionComplete(transaction)
+}
+
+/**
+ * Merge a successful sync response into IndexedDB. Local edits that are newer
+ * than the server copy are preserved and stay queued for the next sync.
+ */
+export async function applyWorkspaceSync(input: {
+  acknowledgements: SyncAcknowledgement[]
+  records: SyncedWorkspaceRecord[]
+  tombstones: WorkspaceTombstone[]
+}): Promise<void> {
+  const db = await openDatabase()
+  const transaction = db.transaction(['records', 'changes'], 'readwrite')
+  const recordStore = transaction.objectStore('records')
+  const changeStore = transaction.objectStore('changes')
+
+  const touched = new Set<string>([
+    ...input.acknowledgements.map((item) => item.recordId),
+    ...input.records.map((item) => item.recordId),
+    ...input.tombstones.map((item) => item.recordId),
+  ])
+
+  const pendingByRecord = new Map<string, PendingChange>()
+  for (const recordId of touched) {
+    const pending = await requestResult(
+      changeStore.get(recordId) as IDBRequest<PendingChange | undefined>,
+    )
+    if (pending) pendingByRecord.set(recordId, pending)
+  }
+
+  for (const acknowledgement of input.acknowledgements) {
+    const pending = pendingByRecord.get(acknowledgement.recordId)
+    if (
+      pending &&
+      new Date(pending.changedAt).getTime() <=
+        new Date(acknowledgement.changedAt).getTime()
+    ) {
+      changeStore.delete(acknowledgement.recordId)
+      pendingByRecord.delete(acknowledgement.recordId)
+    }
+  }
+
+  for (const remote of input.records) {
+    const pending = pendingByRecord.get(remote.recordId)
+    if (
+      pending &&
+      new Date(pending.changedAt).getTime() > new Date(remote.updatedAt).getTime()
+    ) {
+      continue
+    }
+
+    const existing = await requestResult(
+      recordStore.get(remote.recordId) as IDBRequest<WorkspaceRecord | undefined>,
+    )
+    if (
+      existing &&
+      new Date(existing.updatedAt).getTime() > new Date(remote.updatedAt).getTime() &&
+      !pending
+    ) {
+      continue
+    }
+
+    recordStore.put({
+      id: remote.recordId,
+      title: remote.title,
+      body: remote.body,
+      category: remote.category,
+      pinned: remote.pinned,
+      isSample: remote.isSample,
+      createdAt: remote.createdAt,
+      updatedAt: remote.updatedAt,
+    } satisfies WorkspaceRecord)
+  }
+
+  for (const tombstone of input.tombstones) {
+    const pending = pendingByRecord.get(tombstone.recordId)
+    if (
+      pending &&
+      new Date(pending.changedAt).getTime() >
+        new Date(tombstone.deletedAt).getTime()
+    ) {
+      continue
+    }
+    recordStore.delete(tombstone.recordId)
+  }
+
+  await transactionComplete(transaction)
+}
+
+const sampleReports: NetworkReportInput[] = [
+  {
+    provider: 'MTN',
+    location: 'Ikeja, Lagos',
+    issue: 'Data connection drops frequently during evening hours.',
+  },
+  {
+    provider: 'Airtel',
+    location: 'Yaba, Lagos',
+    issue: 'Slow browsing speeds even with full signal bars.',
+  },
+  {
+    provider: 'Glo',
+    location: 'Ibadan, Oyo',
+    issue: 'Unable to send WhatsApp messages during rainfall.',
+  },
+  {
+    provider: '9mobile',
+    location: 'Abuja, FCT',
+    issue: 'No network in basement office.',
+  },
+]
+
+export async function addSampleReports(): Promise<NetworkReport[]> {
+  const reports: NetworkReport[] = []
+  for (const input of sampleReports) {
+    reports.push(await persistReport(input, true))
+  }
+  return reports
 }

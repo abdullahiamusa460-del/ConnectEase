@@ -22,7 +22,7 @@ export function OfflineBanner({
             {isDeviceOffline ? 'You are offline.' : 'Offline simulation is on.'}
           </span>{' '}
           Saved records and the dashboard remain available. New changes are queued on this device
-          and nothing is uploaded.
+          and sync when the connection returns.
         </p>
       </div>
       <button

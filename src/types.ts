@@ -47,13 +47,14 @@ export interface NavItem {
   showInMobileNav: boolean
 }
 
-export type AppRoute = 'dashboard' | 'workspace' | 'sync' | 'settings'
+export type AppRoute = 'dashboard' | 'workspace' | 'sync' | 'settings' | 'network-test' | 'network-reports'
 
 export interface AppNavItem {
   id: AppRoute
   label: string
   shortLabel: string
   icon: LucideIcon
+  showBadge?: boolean
 }
 
 export type RecordCategory = 'note' | 'contact' | 'resource'
@@ -97,3 +98,81 @@ export interface AppSettings {
 }
 
 export type ServiceWorkerStatus = 'dev' | 'unsupported' | 'registering' | 'ready' | 'error'
+
+export type NetworkProvider = 'MTN' | 'Airtel' | 'Glo' | '9mobile' | 'Other'
+
+export interface NetworkTestResult {
+  id: string
+  endpoint: string | null
+  latencyMs: number | null
+  downloadMbps: number | null
+  uploadMbps: number | null
+  testedAt: string
+  error: string | null
+  available: boolean
+  syncedAt?: string
+}
+
+export interface NetworkReport {
+  id: string
+  provider: NetworkProvider
+  location: string | null
+  issue: string
+  reportedAt: string
+  isDemo?: boolean
+  syncedAt?: string
+}
+
+export interface NetworkReportInput {
+  provider: NetworkProvider
+  location: string | null
+  issue: string
+}
+
+export interface NetworkReportFilters {
+  query: string
+  provider: NetworkProvider | 'all'
+}
+
+/**
+ * Shapes returned by the ConnectEase sync API. They intentionally mirror the
+ * local workspace types so records can be merged without a UI-specific mapper.
+ */
+export interface SyncedWorkspaceRecord {
+  recordId: string
+  title: string
+  body: string
+  category: RecordCategory
+  pinned: boolean
+  isSample: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface WorkspaceTombstone {
+  recordId: string
+  deletedAt: string
+}
+
+export interface SyncAcknowledgement {
+  recordId: string
+  action: ChangeAction
+  status: 'applied' | 'conflict'
+  changedAt: string
+  serverUpdatedAt?: string
+}
+
+export interface WorkspaceSyncResponse {
+  batchId: string
+  replayed: boolean
+  acknowledgements: SyncAcknowledgement[]
+  records: SyncedWorkspaceRecord[]
+  tombstones: WorkspaceTombstone[]
+  serverTime: string
+}
+
+export interface SyncMetaCredentials {
+  installationId: string
+  secret: string
+  createdAt: string
+}

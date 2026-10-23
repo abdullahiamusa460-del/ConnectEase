@@ -148,7 +148,7 @@ export function WorkspacePage({
               Workspace
               <span className="h-1 w-1 rounded-full bg-line" aria-hidden="true" />
               <span className="font-medium normal-case tracking-normal text-muted">
-                IndexedDB · local only
+                IndexedDB · offline first
               </span>
             </p>
             <h1
@@ -159,7 +159,7 @@ export function WorkspacePage({
             </h1>
             <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted sm:text-[13px]">
               Create notes, contacts and resources that stay available without a connection.
-              Everything is stored in this browser.
+              Everything is stored in this browser and syncs when you are online.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">

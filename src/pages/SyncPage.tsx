@@ -14,6 +14,7 @@ import {
   WifiOff,
 } from 'lucide-react'
 import type { AppSettings, PendingChange } from '../types'
+import type { SyncStatus } from '../hooks/useSync'
 import { cn, formatRelativeTime } from '../lib/utils'
 import { changeMeta } from '../components/workspace/recordMeta'
 
@@ -23,6 +24,9 @@ interface SyncPageProps {
   isOnline: boolean
   isSimulatedOffline: boolean
   settings: AppSettings
+  syncStatus: SyncStatus
+  syncError: string | null
+  lastSyncedAt: string | null
   onCheckAgain: () => void
   onOpenSettings: () => void
   onOpenWorkspace: () => void
@@ -34,12 +38,40 @@ export function SyncPage({
   isOnline,
   isSimulatedOffline,
   settings,
+  syncStatus,
+  syncError,
+  lastSyncedAt,
   onCheckAgain,
   onOpenSettings,
   onOpenWorkspace,
 }: SyncPageProps) {
   const isOffline = !isOnline || isSimulatedOffline
   const lastChange = changes[0]?.changedAt
+  const isConnected = !isOffline && (syncStatus === 'synced' || syncStatus === 'idle')
+  const isConfigured = syncStatus !== 'unconfigured'
+  const bannerTone = isConnected
+    ? 'border-brand/20 bg-brand-soft/70'
+    : 'border-amber/25 bg-amber-soft/70'
+  const bannerText = isConnected ? 'text-[#0e5a47]' : 'text-[#7d5a19]'
+  const bannerHeading = isOffline
+    ? 'You are offline'
+    : syncStatus === 'syncing'
+      ? 'Syncing your data'
+      : syncStatus === 'error'
+        ? 'Sync server unreachable'
+        : !isConfigured
+          ? 'Sync server not configured'
+          : 'Sync server connected'
+  const bannerDetail = isOffline
+    ? 'Records and queued changes are saved on this device. Sync resumes automatically when the connection returns.'
+    : syncStatus === 'syncing'
+      ? 'Sending queued changes and saving the server response on this device.'
+      : syncStatus === 'error'
+        ? (syncError ??
+          'The server could not be reached. Your changes remain queued locally and will be retried.')
+        : !isConfigured
+          ? 'This build is running local-only. Records stay on this device until a sync server is configured.'
+          : 'Records are always saved locally first. Queued changes sync automatically when online.'
 
   return (
     <div className="space-y-4 sm:space-y-5">
@@ -79,29 +111,54 @@ export function SyncPage({
               )}
               {isOffline ? 'Offline' : 'Online'}
             </span>
-            <button type="button" className="btn-secondary" onClick={onCheckAgain}>
-              <RefreshCw className="h-4 w-4" aria-hidden="true" />
-              Check again
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={onCheckAgain}
+              disabled={syncStatus === 'syncing'}
+            >
+              <RefreshCw
+                className={cn('h-4 w-4', syncStatus === 'syncing' && 'animate-spin')}
+                aria-hidden="true"
+              />
+              {syncStatus === 'syncing' ? 'Syncing…' : 'Sync now'}
             </button>
           </div>
         </div>
       </section>
 
-      <div className="flex flex-col gap-3 rounded-2xl border border-amber/25 bg-amber-soft/70 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+      <div
+        className={cn(
+          'flex flex-col gap-3 rounded-2xl border px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between',
+          bannerTone,
+        )}
+      >
         <div className="flex items-start gap-2.5">
-          <ServerOff className="mt-0.5 h-4 w-4 shrink-0 text-amber" aria-hidden="true" />
+          {isConnected ? (
+            <CloudUpload className={cn('mt-0.5 h-4 w-4 shrink-0', bannerText)} aria-hidden="true" />
+          ) : (
+            <ServerOff className={cn('mt-0.5 h-4 w-4 shrink-0', bannerText)} aria-hidden="true" />
+          )}
           <div>
-            <p className="text-[12px] font-semibold text-[#7d5a19]">Sync server not connected</p>
-            <p className="mt-0.5 text-[10px] leading-relaxed text-[#7d5a19]/85">
-              This is a frontend-only build. Nothing is uploaded, and no change is marked as
-              synced. Your records stay safely queued on this device.
+            <p className={cn('text-[12px] font-semibold', bannerText)}>{bannerHeading}</p>
+            <p className={cn('mt-0.5 text-[10px] leading-relaxed opacity-85', bannerText)}>
+              {bannerDetail}
+            </p>
+            <p className={cn('mt-1 text-[9px] font-medium', bannerText)}>
+              {lastSyncedAt
+                ? `Last synced ${formatRelativeTime(lastSyncedAt)}`
+                : 'No successful sync yet'}
             </p>
           </div>
         </div>
         <button
           type="button"
           onClick={onOpenSettings}
-          className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-amber/20 bg-white/60 px-2.5 text-[10px] font-semibold text-[#7d5a19] transition-colors hover:bg-white"
+          className={cn(
+            'inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg border bg-white/60 px-2.5 text-[10px] font-semibold transition-colors hover:bg-white',
+            bannerText,
+            isConnected ? 'border-brand/20' : 'border-amber/20',
+          )}
         >
           <SlidersHorizontal className="h-3 w-3" aria-hidden="true" />
           Sync preferences
@@ -235,8 +292,8 @@ export function SyncPage({
                 <div className="flex items-start gap-2.5 rounded-xl border border-line/80 bg-canvas/60 px-3.5 py-3 text-[10px] leading-relaxed text-muted">
                   <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber" aria-hidden="true" />
                   <span>
-                    These changes are not marked as synced. When a backend is added, the queue can
-                    be processed without changing the records on this device.
+                    These changes are queued on this device and will be sent when you tap Sync
+                    now or when automatic sync runs. Records stay editable offline.
                   </span>
                 </div>
                 <button
@@ -256,8 +313,8 @@ export function SyncPage({
               </span>
               <p className="mt-4 font-display text-[15px] font-semibold">No local changes waiting</p>
               <p className="mt-1 max-w-xs text-[11px] leading-relaxed text-muted">
-                Create or edit a record and it will appear here until a real sync server is
-                connected.
+                Create or edit a record and it will appear here until it is synced with the
+                server.
               </p>
               <button type="button" className="btn-secondary mt-4" onClick={onOpenWorkspace}>
                 Go to workspace
@@ -301,9 +358,40 @@ export function SyncPage({
               </div>
               <div className="flex items-center justify-between gap-3 rounded-xl border border-line/70 bg-canvas/45 px-3 py-2.5">
                 <dt className="text-[10px] text-muted">Sync server</dt>
-                <dd className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-[#a8463f]">
-                  <span className="h-1.5 w-1.5 rounded-full bg-[#b4544e]" aria-hidden="true" />
-                  Not connected
+                <dd
+                  className={cn(
+                    'inline-flex items-center gap-1.5 text-[10px] font-semibold',
+                    isOffline
+                      ? 'text-amber'
+                      : syncStatus === 'error' || !isConfigured
+                        ? 'text-[#a8463f]'
+                        : 'text-brand',
+                  )}
+                >
+                  <span
+                    className={cn(
+                      'h-1.5 w-1.5 rounded-full',
+                      isOffline
+                        ? 'bg-amber'
+                        : syncStatus === 'error' || !isConfigured
+                          ? 'bg-[#b4544e]'
+                          : 'bg-brand',
+                    )}
+                    aria-hidden="true"
+                  />
+                  {isOffline
+                    ? 'Offline'
+                    : syncStatus === 'error'
+                      ? 'Unreachable'
+                      : !isConfigured
+                        ? 'Not configured'
+                        : 'Connected'}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-line/70 bg-canvas/45 px-3 py-2.5">
+                <dt className="text-[10px] text-muted">Last sync</dt>
+                <dd className="text-[10px] font-semibold text-ink">
+                  {lastSyncedAt ? formatRelativeTime(lastSyncedAt) : 'Never'}
                 </dd>
               </div>
               <div className="flex items-center justify-between gap-3 rounded-xl border border-line/70 bg-canvas/45 px-3 py-2.5">
@@ -314,7 +402,7 @@ export function SyncPage({
 
             <p className="mt-3 flex items-start gap-1.5 text-[9px] leading-relaxed text-muted">
               <ShieldCheck className="mt-0.5 h-3 w-3 shrink-0 text-brand" aria-hidden="true" />
-              Records remain available offline. No data leaves this device in this build.
+              Records remain available offline. Sync only sends queued changes when the app is online.
             </p>
           </section>
 
@@ -330,7 +418,7 @@ export function SyncPage({
                 >
                   Preferences
                 </h2>
-                <p className="mt-0.5 text-[11px] text-muted">Saved for a future backend.</p>
+                <p className="mt-0.5 text-[11px] text-muted">Saved on this device.</p>
               </div>
             </div>
 

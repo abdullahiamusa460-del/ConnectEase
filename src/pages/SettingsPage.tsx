@@ -153,7 +153,7 @@ export function SettingsPage({
               Preferences
               <span className="h-1 w-1 rounded-full bg-line" aria-hidden="true" />
               <span className="font-medium normal-case tracking-normal text-muted">
-                IndexedDB · local only
+                IndexedDB · offline first
               </span>
             </p>
             <h1
@@ -163,8 +163,8 @@ export function SettingsPage({
               Data &amp; sync settings
             </h1>
             <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted sm:text-[13px]">
-              Control optional downloads, data saving and how local changes will sync when a
-              backend is available.
+              Control optional downloads, data saving and how local changes sync when a connection
+              is available.
             </p>
           </div>
           <button
@@ -272,7 +272,7 @@ export function SettingsPage({
                   Synchronisation
                 </h2>
                 <p className="mt-0.5 text-[11px] text-muted">
-                  These preferences will apply once a backend exists.
+                  Controls when queued changes sync.
                 </p>
               </div>
             </div>
@@ -299,8 +299,9 @@ export function SettingsPage({
             <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-amber/20 bg-amber-soft/65 px-3.5 py-3 text-[10px] leading-relaxed text-[#7d5a19]">
               <ServerOff className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber" aria-hidden="true" />
               <span>
-                No sync server is connected. These settings are stored locally and do not upload
-                anything. Local changes remain queued until a real backend is added.
+                Changes are always saved locally first. When online, queued changes sync to the
+                ConnectEase server; if the server cannot be reached they stay queued on this
+                device.
               </span>
             </div>
           </section>
@@ -422,8 +423,8 @@ export function SettingsPage({
 
           <p className="flex items-start gap-1.5 px-1 text-[9px] leading-relaxed text-muted">
             <ShieldCheck className="mt-0.5 h-3 w-3 shrink-0 text-brand" aria-hidden="true" />
-            Preferences and records are stored in IndexedDB. Nothing is sent to a server in this
-            demo.
+            Preferences and records are stored in IndexedDB. Reports and queued changes are only
+            sent to the sync server when sync runs.
           </p>
         </div>
       </div>

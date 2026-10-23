@@ -5,6 +5,8 @@ const routeHashes: Record<AppRoute, string> = {
   dashboard: '#/dashboard',
   workspace: '#/workspace',
   sync: '#/sync',
+  'network-test': '#/network-test',
+  'network-reports': '#/network-reports',
   settings: '#/settings',
 }
 
@@ -13,6 +15,10 @@ function readRoute(): AppRoute {
   const value = window.location.hash.replace(/^#\/?/, '').split(/[/?]/)[0]
   if (value === 'workspace') return 'workspace'
   if (value === 'sync' || value === 'sync-centre') return 'sync'
+  if (value === 'network-test' || value === 'network_test') return 'network-test'
+  if (value === 'network-reports' || value === 'network_reports' || value === 'reports') {
+    return 'network-reports'
+  }
   if (value === 'settings') return 'settings'
   return 'dashboard'
 }

@@ -23,7 +23,6 @@ import {
   initialSyncItems,
   plan,
 } from './data/demo'
-import { sectionIds } from './data/navigation'
 import { useHashRoute } from './hooks/useHashRoute'
 import { useNetworkReports } from './hooks/useNetworkTests'
 import { useOnlineStatus } from './hooks/useOnlineStatus'
@@ -43,54 +42,6 @@ import { SettingsPage } from './pages/SettingsPage'
 import { SyncPage } from './pages/SyncPage'
 import { WorkspacePage } from './pages/WorkspacePage'
 import { removeRemoteReport } from './lib/api'
-
-function useActiveSection(enabled: boolean) {
-  const [activeSection, setActiveSection] = useState('overview')
-
-  useEffect(() => {
-    if (!enabled) return
-
-    let frame = 0
-
-    const update = () => {
-      frame = 0
-      const ordered = sectionIds
-        .map((id) => document.getElementById(id))
-        .filter((element): element is HTMLElement => Boolean(element))
-        .map((element) => ({
-          id: element.id,
-          top: element.getBoundingClientRect().top + window.scrollY,
-        }))
-        .sort((a, b) => a.top - b.top)
-
-      let current = ordered[0]?.id ?? 'overview'
-      let currentTop = -1
-      for (const section of ordered) {
-        if (section.top <= window.scrollY + 140 && section.top > currentTop) {
-          current = section.id
-          currentTop = section.top
-        }
-      }
-      setActiveSection(current)
-    }
-
-    const onScroll = () => {
-      if (frame) return
-      frame = window.requestAnimationFrame(update)
-    }
-
-    update()
-    window.addEventListener('scroll', onScroll, { passive: true })
-    window.addEventListener('resize', onScroll)
-    return () => {
-      if (frame) window.cancelAnimationFrame(frame)
-      window.removeEventListener('scroll', onScroll)
-      window.removeEventListener('resize', onScroll)
-    }
-  }, [enabled])
-
-  return activeSection
-}
 
 export default function App() {
   const { route, navigate, navigateToSection } = useHashRoute()
@@ -133,7 +84,7 @@ export default function App() {
   const syncTimer = useRef<number | null>(null)
 
   const isOffline = isSimulatedOffline || !isOnline
-  const activeSection = useActiveSection(route === 'dashboard' && !isLoading)
+  const [activeSection, setActiveSection] = useState<string>('overview')
 
   const notify = useCallback((message: string, tone: ToastTone = 'info') => {
     toastCount.current += 1
@@ -383,6 +334,7 @@ export default function App() {
         dataSaverOn={settings.dataSaver}
         onNavigate={navigate}
         onNavigateSection={navigateToSection}
+        onSelectSection={setActiveSection}
       />
 
       <div className="lg:pl-72">
@@ -488,95 +440,138 @@ export default function App() {
             <DashboardSkeleton />
           ) : (
             <div className="space-y-4 sm:space-y-5">
-              <section id="overview" className="scroll-mt-24" aria-labelledby="page-heading">
-                <div className="mb-4 flex flex-wrap items-end justify-between gap-4 sm:mb-5">
-                  <div>
-                    <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-brand">
-                      Overview
-                      <span className="h-1 w-1 rounded-full bg-line" aria-hidden="true" />
-                      <span className="font-medium normal-case tracking-normal text-muted">
+              {activeSection === 'overview' && (
+                <section id="overview" className="scroll-mt-24" aria-labelledby="page-heading">
+                  <div className="mb-4 flex flex-wrap items-end justify-between gap-4 sm:mb-5">
+                    <div>
+                      <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-brand">
+                        Overview
+                        <span className="h-1 w-1 rounded-full bg-line" aria-hidden="true" />
+                        <span className="font-medium normal-case tracking-normal text-muted">
+                          {formatLongDate()}
+                        </span>
+                      </p>
+                      <h1
+                        id="page-heading"
+                        className="mt-1.5 font-display text-[26px] font-semibold tracking-[-0.03em] text-ink sm:text-[30px]"
+                      >
+                        {getGreeting()}, {demoUser.firstName}
+                      </h1>
+                      <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted sm:text-[13px]">
+                        Here&apos;s how your connection, saved content and data use are doing today.
+                      </p>
+                    </div>
+
+                    <div className="hidden items-center gap-2 md:flex">
+                      <span className="chip h-8 px-3">
+                        <CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />
                         {formatLongDate()}
                       </span>
-                    </p>
-                    <h1
-                      id="page-heading"
-                      className="mt-1.5 font-display text-[26px] font-semibold tracking-[-0.03em] text-ink sm:text-[30px]"
-                    >
-                      {getGreeting()}, {demoUser.firstName}
-                    </h1>
-                    <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted sm:text-[13px]">
-                      Here&apos;s how your connection, saved content and data use are doing today.
-                    </p>
+                      <span
+                        className={
+                          isOffline
+                            ? 'inline-flex h-8 items-center gap-1.5 rounded-full border border-amber/20 bg-amber-soft px-3 text-[10px] font-semibold text-amber'
+                            : 'inline-flex h-8 items-center gap-1.5 rounded-full border border-brand/15 bg-brand-soft px-3 text-[10px] font-semibold text-brand-dark'
+                        }
+                      >
+                        {isOffline ? (
+                          <WifiOff className="h-3.5 w-3.5" aria-hidden="true" />
+                        ) : (
+                          <Wifi className="h-3.5 w-3.5" aria-hidden="true" />
+                        )}
+                        {statusLabel}
+                      </span>
+                    </div>
                   </div>
 
-                  <div className="hidden items-center gap-2 md:flex">
-                    <span className="chip h-8 px-3">
-                      <CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />
-                      {formatLongDate()}
+                  <div className="grid gap-4 xl:grid-cols-12 xl:gap-5">
+                    <div className="min-w-0 xl:col-span-8">
+                      <ConnectionCard
+                        isOffline={isOffline}
+                        isDeviceOffline={!isOnline}
+                        onToggleOffline={handleToggleOffline}
+                      />
+                    </div>
+                    <div className="min-w-0 xl:col-span-4">
+                      <DataSaverCard
+                        enabled={settings.dataSaver}
+                        onToggle={handleToggleDataSaver}
+                      />
+                    </div>
+                  </div>
+
+                  <StatCards
+                    offlineCount={offlineItems.length}
+                    offlineSize={offlineSize}
+                    syncCount={syncItems.length}
+                    syncSize={syncSize}
+                  />
+
+                  <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted sm:mt-4">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="h-1.5 w-1.5 rounded-full bg-brand" aria-hidden="true" />
+                      Plan: {demoUser.plan}
                     </span>
-                    <span
-                      className={
-                        isOffline
-                          ? 'inline-flex h-8 items-center gap-1.5 rounded-full border border-amber/20 bg-amber-soft px-3 text-[10px] font-semibold text-amber'
-                          : 'inline-flex h-8 items-center gap-1.5 rounded-full border border-brand/15 bg-brand-soft px-3 text-[10px] font-semibold text-brand-dark'
-                      }
-                    >
-                      {isOffline ? (
-                        <WifiOff className="h-3.5 w-3.5" aria-hidden="true" />
-                      ) : (
-                        <Wifi className="h-3.5 w-3.5" aria-hidden="true" />
-                      )}
-                      {statusLabel}
+                    <span className="hidden text-line sm:inline" aria-hidden="true">
+                      |
+                    </span>
+                    <span>
+                      {plan.remainingGB} GB left · {plan.usedGB} GB used this cycle
+                    </span>
+                    <span className="ml-auto inline-flex items-center gap-1.5">
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber" aria-hidden="true" />
+                      Sample data only
                     </span>
                   </div>
-                </div>
+                </section>
+              )}
 
-                <div className="grid gap-4 xl:grid-cols-12 xl:gap-5">
-                  <div className="min-w-0 xl:col-span-8">
-                    <ConnectionCard
-                      isOffline={isOffline}
-                      isDeviceOffline={!isOnline}
-                      onToggleOffline={handleToggleOffline}
-                    />
+              {activeSection === 'offline' && (
+                <section id="offline" className="scroll-mt-24" aria-labelledby="offline-heading">
+                  <div className="mb-4 flex items-end justify-between gap-4 sm:mb-5">
+                    <div>
+                      <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-brand">
+                        Offline library
+                        <span className="h-1 w-1 rounded-full bg-line" aria-hidden="true" />
+                      </p>
+                      <h2 id="offline-heading" className="mt-1.5 font-display text-[26px] font-semibold tracking-[-0.03em] text-ink sm:text-[30px]">
+                        Saved content
+                      </h2>
+                      <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted sm:text-[13px]">
+                        Items stored on this device for offline use.
+                      </p>
+                    </div>
                   </div>
-                  <div className="min-w-0 xl:col-span-4">
-                    <DataSaverCard
-                      enabled={settings.dataSaver}
-                      onToggle={handleToggleDataSaver}
-                    />
-                  </div>
-                </div>
-
-                <StatCards
-                  offlineCount={offlineItems.length}
-                  offlineSize={offlineSize}
-                  syncCount={syncItems.length}
-                  syncSize={syncSize}
-                />
-
-                <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted sm:mt-4">
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="h-1.5 w-1.5 rounded-full bg-brand" aria-hidden="true" />
-                    Plan: {demoUser.plan}
-                  </span>
-                  <span className="hidden text-line sm:inline" aria-hidden="true">
-                    |
-                  </span>
-                  <span>
-                    {plan.remainingGB} GB left · {plan.usedGB} GB used this cycle
-                  </span>
-                  <span className="ml-auto inline-flex items-center gap-1.5">
-                    <span className="h-1.5 w-1.5 rounded-full bg-amber" aria-hidden="true" />
-                    Sample data only
-                  </span>
-                </div>
-              </section>
-
-              <div className="grid gap-4 xl:grid-cols-12 xl:gap-5">
-                <div className="min-w-0 xl:col-span-7">
                   <OfflineLibrary items={offlineItems} onOpenItem={handleOpenOfflineItem} />
-                </div>
-                <div className="min-w-0 xl:col-span-5">
+                </section>
+              )}
+
+              {activeSection === 'sync' && (
+                <section id="sync" className="scroll-mt-24" aria-labelledby="sync-heading">
+                  <div className="mb-4 flex items-end justify-between gap-4 sm:mb-5">
+                    <div>
+                      <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-brand">
+                        Demo sync queue
+                        <span className="h-1 w-1 rounded-full bg-line" aria-hidden="true" />
+                      </p>
+                      <h2 id="sync-heading" className="mt-1.5 font-display text-[26px] font-semibold tracking-[-0.03em] text-ink sm:text-[30px]">
+                        Pending sync
+                      </h2>
+                      <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted sm:text-[13px]">
+                        Queued local changes waiting to sync.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleSync}
+                        disabled={isOffline || isSyncing || syncItems.length === 0}
+                        className="btn-secondary disabled:opacity-50"
+                      >
+                        {isSyncing ? 'Syncing…' : 'Sync now'}
+                      </button>
+                    </div>
+                  </div>
                   <SyncQueue
                     items={syncItems}
                     isOffline={isOffline}
@@ -584,17 +579,35 @@ export default function App() {
                     onSync={handleSync}
                     onRestore={handleRestoreQueue}
                   />
-                </div>
-              </div>
+                </section>
+              )}
 
-              <div className="grid gap-4 xl:grid-cols-12 xl:gap-5">
-                <div className="min-w-0 xl:col-span-7">
-                  <ActivityFeed activities={activities} />
-                </div>
-                <div className="min-w-0 xl:col-span-5">
-                  <UsageCard dataSaverOn={settings.dataSaver} />
-                </div>
-              </div>
+              {activeSection === 'activity' && (
+                <section id="activity" className="scroll-mt-24" aria-labelledby="activity-heading">
+                  <div className="grid gap-4 xl:grid-cols-12 xl:gap-5">
+                    <div className="min-w-0 xl:col-span-7">
+                      <div className="mb-4 flex items-end justify-between gap-4 sm:mb-5">
+                        <div>
+                          <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-brand">
+                            Recent activity
+                            <span className="h-1 w-1 rounded-full bg-line" aria-hidden="true" />
+                          </p>
+                          <h2 id="activity-heading" className="mt-1.5 font-display text-[26px] font-semibold tracking-[-0.03em] text-ink sm:text-[30px]">
+                            Activity feed
+                          </h2>
+                          <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted sm:text-[13px]">
+                            Latest device activity and changes.
+                          </p>
+                        </div>
+                      </div>
+                      <ActivityFeed activities={activities} />
+                    </div>
+                    <div className="min-w-0 xl:col-span-5">
+                      <UsageCard dataSaverOn={settings.dataSaver} />
+                    </div>
+                  </div>
+                </section>
+              )}
 
               <footer className="flex flex-col gap-1.5 border-t border-line/80 pb-2 pt-5 text-[10px] leading-relaxed text-muted sm:flex-row sm:items-center sm:justify-between">
                 <p>

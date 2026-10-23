@@ -15,6 +15,7 @@ interface SidebarProps {
   dataSaverOn: boolean
   onNavigate: (route: AppRoute) => void
   onNavigateSection: (sectionId: string) => void
+  onSelectSection?: (sectionId: string) => void
 }
 
 export function Sidebar({
@@ -27,6 +28,7 @@ export function Sidebar({
   dataSaverOn,
   onNavigate,
   onNavigateSection,
+  onSelectSection,
 }: SidebarProps) {
   return (
     <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 flex-col overflow-y-auto bg-brand-deep lg:flex">
@@ -126,6 +128,7 @@ export function Sidebar({
                 onClick={(event) => {
                   event.preventDefault()
                   onNavigateSection(item.id)
+                  onSelectSection?.(item.id)
                 }}
                 aria-current={isActive ? 'location' : undefined}
                 className={cn('nav-link', isActive && 'nav-link-active')}
